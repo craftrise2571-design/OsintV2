@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opesint Security Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        .selectable-console { user-select: text !important; -webkit-user-select: text !important; }
+        
+        .fade-in { animation: fadeIn 0.4s ease-in forwards; }
+        .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+        #sidebar {
+            width: 76px;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-x: hidden;
+            white-space: nowrap;
+        }
+        #sidebar:hover { width: 280px; }
+        .menu-text {
+            opacity: 0;
+            transition: opacity 0.2s;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        #sidebar:hover .menu-text {
+            opacity: 1;
+            transition-delay: 0.1s;
+        }
+        .menu-item { display: flex; align-items: center; height: 44px; }
+        .menu-icon { min-width: 44px; display: flex; justify-content: center; align-items: center; }
+        body, #sidebar, .shadow-md, .settings-bg { transition: background-color 0.4s ease; }
+    </style>
+</head>
+<body id="app-body" class="bg-[#090a0f] text-zinc-300 h-screen overflow-hidden flex flex-col">
+
+    <!-- AUTH EKRANI -->
+    <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm fade-in">
+        <div class="bg-[#12141c] settings-bg border border-zinc-800 p-8 rounded-2xl w-full max-w-md shadow-2xl relative">
+            <div id="login-form-container" class="fade-in">
+                <div class="text-center mb-6">
+                    <h1 class="text-3xl font-bold tracking-wider text-white">OPESİNT</h1>
+                    <p class="text-xs text-zinc-500 mt-1">Siber Güvenlik & İstihbarat Platformu</p>
+                </div>
+                <form onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1">Lisans Anahtarı</label>
+                        <input type="text" id="license-key" required placeholder="OPST-XXXXXX" class="w-full bg-black/30 border border-zinc-800 rounded-lg px-4 py-3 text-sm focus:border-red-500 outline-none text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1">Referans Kodu</label>
+                        <input type="password" id="ref-code" required placeholder="Giriş anahtarınızı girin..." class="w-full bg-black/30 border border-zinc-800 rounded-lg px-4 py-3 text-sm focus:border-red-500 outline-none text-white">
+                    </div>
+                    <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] mt-2">
+                        <i class="fa-solid fa-right-to-bracket mr-2"></i> Sisteme Giriş Yap
+                    </button>
+                </form>
+                <div class="text-center mt-6">
+                    <button onclick="toggleAuth('register')" class="text-xs text-red-400 hover:text-red-300 underline">Lisansın yok mu? Kayıt Ol</button>
+                </div>
+            </div>
+
+            <div id="register-form-container" class="hidden">
+                <div class="text-center mb-6">
+                    <h1 class="text-xl font-bold tracking-wider text-white">Lisans Oluştur</h1>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3 bg-black/30 border border-zinc-800 p-4 rounded-lg">
+                        <input type="checkbox" id="robot-check" class="w-5 h-5 accent-red-600 cursor-pointer">
+                        <label for="robot-check" class="text-sm cursor-pointer select-none">Ben robot değilim</label>
+                        <i class="fa-brands fa-cloudflare ml-auto text-xl text-zinc-500"></i>
+                    </div>
+                    <button onclick="handleRegister()" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-lg transition-colors">
+                        <i class="fa-solid fa-key mr-2"></i> Key Üret
+                    </button>
+                    <div id="generated-key-box" class="hidden mt-4 p-4 border border-emerald-500/30 bg-emerald-500/10 rounded-lg text-center">
+                        <p class="text-xs text-emerald-400 mb-1">Yeni Lisans Anahtarınız:</p>
+                        <p id="new-key-display" class="font-bold text-white tracking-widest selectable-console"></p>
+                    </div>
+                </div>
+                <div class="text-center mt-6">
+                    <button onclick="toggleAuth('login')" class="text-xs text-zinc-400 hover:text-white underline">Giriş ekranına dön</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ANA PLATFORM -->
+    <div id="main-app" class="flex h-screen hidden opacity-0 bg-transparent">
+        
+        <!-- YAN MENÜ -->
+        <aside id="sidebar" class="bg-[#0c0d12] border-r border-zinc-800/80 flex flex-col justify-between z-20 shadow-2xl relative">
+            <div>
+                <div class="h-16 flex items-center border-b border-zinc-800/80 px-4">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-red-500/10 border border-red-500/30 p-2 rounded-lg text-red-500 shadow-[0_0_10px_rgba(220,38,38,0.2)]">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <div class="menu-text">
+                            <h2 class="text-sm font-bold text-white tracking-wide">Opesint</h2>
+                            <p class="text-[10px] text-zinc-500">Security Suite</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-3 space-y-1 text-sm mt-2" id="menu-items-container">
+                    <a href="#" onclick="switchTab(this, 'Dashboard')" class="menu-item active rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">
+                        <div class="menu-icon"><i class="fa-solid fa-house text-lg"></i></div>
+                        <span class="menu-text font-medium">Dashboard</span>
+                    </a>
+                    <a href="#" onclick="switchTab(this, 'MultiBoard')" class="menu-item rounded-lg text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200">
+                        <div class="menu-icon"><i class="fa-solid fa-cubes text-lg"></i></div>
+                        <span class="menu-text">MultiBoard</span>
+                    </a>
+                    <a href="#" onclick="switchTab(this, 'Username Osint')" class="menu-item rounded-lg text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200">
+                        <div class="menu-icon"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></div>
+                        <span class="menu-text">Username Osint</span>
+                    </a>
+                    <a href="#" onclick="switchTab(this, 'OpenArchive Breach')" class="menu-item rounded-lg text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200">
+                        <div class="menu-icon"><i class="fa-solid fa-database text-lg"></i></div>
+                        <span class="menu-text">OpenArchive Breach</span>
+                    </a>
+                    <a href="#" onclick="switchTab(this, 'Whois Lookup')" class="menu-item rounded-lg text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200">
+                        <div class="menu-icon"><i class="fa-solid fa-globe text-blue-400 text-lg"></i></div>
+                        <span class="menu-text">Whois Lookup</span>
+                    </a>
+                    <a href="#" onclick="switchTab(this, 'Port Scanner')" class="menu-item rounded-lg text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200">
+                        <div class="menu-icon"><i class="fa-solid fa-network-wired text-emerald-400 text-lg"></i></div>
+                        <span class="menu-text">Port Scanner</span>
+                    </a>
+                    <a href="#" onclick="switchTab(this, 'Discord OSINT')" class="menu-item rounded-lg text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200">
+                        <div class="menu-icon"><i class="fa-brands fa-discord text-indigo-400 text-lg"></i></div>
+                        <span class="menu-text">Discord OSINT</span>
+                    </a>
+                    <a href="#" onclick="switchTab(this, 'Roblox OSINT')" class="menu-item rounded-lg text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200">
+                        <div class="menu-icon"><i class="fa-solid fa-cube text-zinc-300 text-lg"></i></div>
+                        <span class="menu-text">Roblox OSINT</span>
+                    </a>
+                    <a href="#" onclick="switchTab(this, 'Craftrise OSINT')" class="menu-item rounded-lg text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200">
+                        <div class="menu-icon"><i class="fa-solid fa-gamepad text-orange-400 text-lg"></i></div>
+                        <span class="menu-text">Craftrise OSINT</span>
+                    </a>
+                    <!-- ADMIN PANEL SEKMESİ -->
+                    <a href="#" id="admin-menu-btn" onclick="switchTab(this, 'Admin Paneli')" class="menu-item rounded-lg text-amber-400 hover:bg-amber-500/10 hidden">
+                        <div class="menu-icon"><i class="fa-solid fa-shield-dog text-lg"></i></div>
+                        <span class="menu-text font-bold">Admin Paneli</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="p-3 border-t border-zinc-800/80">
+                <a href="#" onclick="openSettings()" class="menu-item rounded-lg text-zinc-400 hover:bg-zinc-800/40 hover:text-white">
+                    <div class="menu-icon"><i class="fa-solid fa-gear text-lg"></i></div>
+                    <span class="menu-text">Ayarlar & Profil</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- İÇERİK ALANI -->
+        <main class="flex-1 flex flex-col relative z-0 overflow-hidden bg-transparent">
+            
+            <!-- ÜST HEADER -->
+            <header class="px-6 py-4 flex justify-between items-center border-b border-zinc-800/40">
+                <div class="text-xs text-zinc-500">Opesint Intelligence v2.6</div>
+                <button onclick="openUpgradeModal()" class="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold px-4 py-2 rounded-lg text-xs shadow-lg transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-crown text-amber-300"></i> Upgrade Plan
+                </button>
+            </header>
+
+            <!-- DYNAMIC VIEW CONTAINER -->
+            <div id="view-container" class="flex-1 overflow-hidden flex flex-col"></div>
+
+        </main>
+    </div>
+
+    <!-- UPGRADE PLAN MODALI -->
+    <div id="upgrade-modal" class="fixed inset-0 bg-black/85 z-[120] hidden flex items-center justify-center p-4 fade-in">
+        <div class="bg-[#0f111a] border border-zinc-800 p-8 rounded-2xl w-full max-w-5xl shadow-2xl relative">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-2xl font-bold text-white"><i class="fa-solid fa-rocket mr-2 text-red-500"></i> Planınızı Yükseltin</h2>
+                    <p class="text-xs text-zinc-400 mt-1">İhtiyacınıza uygun siber güvenlik planını seçin.</p>
+                </div>
+                <button onclick="closeUpgradeModal()" class="text-zinc-400 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- BEGINNER -->
+                <div class="bg-[#12141f] border border-zinc-800 rounded-xl p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-2"><i class="fa-solid fa-bolt text-blue-400 mr-2"></i> Beginner</h3>
+                        <div class="text-3xl font-bold text-white mb-4">$10.00 <span class="text-xs text-zinc-500 font-normal">/month</span></div>
+                        <ul class="space-y-2 text-xs text-zinc-300 border-t border-zinc-800 pt-4">
+                            <li><i class="fa-solid fa-check text-blue-400 mr-2"></i> 50 Searches / day</li>
+                            <li><i class="fa-solid fa-check text-blue-400 mr-2"></i> All OSINT Sources</li>
+                        </ul>
+                    </div>
+                    <button onclick="window.location.href='https://discord.gg/EY6dT5xdn'" class="mt-6 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-xs transition-colors">Select Beginner</button>
+                </div>
+
+                <!-- PRO -->
+                <div class="bg-[#12141f] border-2 border-purple-500/50 rounded-xl p-6 flex flex-col justify-between relative shadow-[0_0_20px_rgba(168,85,247,0.15)]">
+                    <span class="absolute -top-3 right-4 bg-purple-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">Most Popular</span>
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-2"><i class="fa-solid fa-shield text-purple-400 mr-2"></i> Pro</h3>
+                        <div class="text-3xl font-bold text-white mb-4">$20.00 <span class="text-xs text-zinc-500 font-normal">/month</span></div>
+                        <ul class="space-y-2 text-xs text-zinc-300 border-t border-zinc-800 pt-4">
+                            <li><i class="fa-solid fa-check text-purple-400 mr-2"></i> 200 Searches / day</li>
+                            <li><i class="fa-solid fa-check text-purple-400 mr-2"></i> Full Breach DB Access</li>
+                        </ul>
+                    </div>
+                    <button onclick="window.location.href='https://discord.gg/EY6dT5xdn'" class="mt-6 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg text-xs transition-colors">Select Pro</button>
+                </div>
+
+                <!-- RESEARCHER -->
+                <div class="bg-[#12141f] border border-zinc-800 rounded-xl p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-2"><i class="fa-solid fa-rocket text-amber-400 mr-2"></i> Researcher</h3>
+                        <div class="text-3xl font-bold text-white mb-4">$35.00 <span class="text-xs text-zinc-500 font-normal">/month</span></div>
+                        <ul class="space-y-2 text-xs text-zinc-300 border-t border-zinc-800 pt-4">
+                            <li><i class="fa-solid fa-check text-amber-400 mr-2"></i> 500 Searches / day</li>
+                            <li><i class="fa-solid fa-check text-amber-400 mr-2"></i> Dark Web Monitoring</li>
+                        </ul>
+                    </div>
+                    <button onclick="window.location.href='https://discord.gg/EY6dT5xdn'" class="mt-6 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-xs transition-colors">Select Researcher</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AYARLAR & TEMA SEÇİMİ MODALI -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-center justify-center fade-in">
+        <div class="bg-[#12141c] settings-bg border border-zinc-700 p-6 rounded-xl w-full max-w-md shadow-2xl relative">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-gear mr-2"></i> Hesap & Tema Ayarları</h3>
+                <button onclick="closeSettings()" class="text-zinc-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="space-y-4 text-sm">
+                <div class="bg-black/30 p-3 rounded-lg border border-zinc-800">
+                    <p class="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1">Kayıtlı Lisans</p>
+                    <p id="set-license" class="text-white font-mono"></p>
+                </div>
+                <div class="bg-black/30 p-3 rounded-lg border border-zinc-800 flex justify-between items-center">
+                    <div>
+                        <p class="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1">Mevcut Plan</p>
+                        <p class="text-emerald-400 font-bold" id="set-plan">Basic</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1">Kalan Kredi</p>
+                        <p class="text-amber-400 font-bold" id="set-cred">0</p>
+                    </div>
+                </div>
+
+                <!-- TEMA SEÇİMİ -->
+                <div class="bg-black/30 p-3 rounded-lg border border-zinc-800">
+                    <p class="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-2">Arayüz Tema & Renk Paleti</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setTheme('default')" class="bg-[#090a0f] border border-zinc-700 hover:border-red-500 text-xs py-2 rounded text-zinc-300 font-medium">Default Kırmızı</button>
+                        <button onclick="setTheme('cyberpunk')" class="bg-[#13091a] border border-purple-900 hover:border-purple-500 text-xs py-2 rounded text-purple-300 font-medium">Cyberpunk Mor</button>
+                        <button onclick="setTheme('matrix')" class="bg-[#05140a] border border-emerald-900 hover:border-emerald-500 text-xs py-2 rounded text-emerald-300 font-medium">Matrix Yeşil</button>
+                        <button onclick="setTheme('ocean')" class="bg-[#09111a] border border-blue-900 hover:border-blue-500 text-xs py-2 rounded text-blue-300 font-medium">Okyanus Mavi</button>
+                        <button onclick="setTheme('gold')" class="bg-[#141209] border border-amber-900 hover:border-amber-500 text-xs py-2 rounded text-amber-300 font-medium">Altın Sarısı</button>
+                        <button onclick="setTheme('light')" class="bg-[#f4f4f5] border border-zinc-400 hover:border-zinc-900 text-xs py-2 rounded text-zinc-900 font-medium">Modern Gri</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentModule = "Dashboard";
+        let activeKey = "";
+        let activeRole = "user";
+        let globalMembers = 1847;
+        let globalQueries = 2467;
+
+        const placeholders = {
+            "Dashboard": "Discord Snowflake ID...",
+            "MultiBoard": "Genel arama hedefi girin...",
+            "Username Osint": "Sorgulanacak kullanıcı adı...",
+            "OpenArchive Breach": "E-posta veya kullanıcı adı...",
+            "Whois Lookup": "Domain adresi (google.com)...",
+            "Port Scanner": "IP adresi (192.168.1.1)...",
+            "Discord OSINT": "Discord Snowflake ID...",
+            "Roblox OSINT": "Roblox Kullanıcı Adı...",
+            "Craftrise OSINT": "Craftrise oyuncu adı..."
+        };
+
+        function setTheme(theme) {
+            const body = document.getElementById('app-body');
+            const sidebar = document.getElementById('sidebar');
+            if(theme === 'default') {
+                body.className = "bg-[#090a0f] text-zinc-300 h-screen overflow-hidden flex flex-col";
+                sidebar.className = "bg-[#0c0d12] border-r border-zinc-800/80 flex flex-col justify-between z-20 shadow-2xl relative";
+            } else if(theme === 'cyberpunk') {
+                body.className = "bg-[#0d0714] text-purple-200 h-screen overflow-hidden flex flex-col";
+                sidebar.className = "bg-[#140b21] border-r border-purple-900/50 flex flex-col justify-between z-20 shadow-2xl relative";
+            } else if(theme === 'matrix') {
+                body.className = "bg-[#040f08] text-emerald-200 h-screen overflow-hidden flex flex-col";
+                sidebar.className = "bg-[#071a0f] border-r border-emerald-900/50 flex flex-col justify-between z-20 shadow-2xl relative";
+            } else if(theme === 'ocean') {
+                body.className = "bg-[#070d14] text-blue-200 h-screen overflow-hidden flex flex-col";
+                sidebar.className = "bg-[#0b1421] border-r border-blue-900/50 flex flex-col justify-between z-20 shadow-2xl relative";
+            } else if(theme === 'gold') {
+                body.className = "bg-[#141007] text-amber-200 h-screen overflow-hidden flex flex-col";
+                sidebar.className = "bg-[#211b0b] border-r border-amber-900/50 flex flex-col justify-between z-20 shadow-2xl relative";
+            } else if(theme === 'light') {
+                body.className = "bg-[#e4e4e7] text-zinc-900 h-screen overflow-hidden flex flex-col";
+                sidebar.className = "bg-[#d4d4d8] border-r border-zinc-300 flex flex-col justify-between z-20 shadow-2xl relative text-zinc-900";
+            }
+        }
+
+        function toggleAuth(type) {
+            if(type === 'register') {
+                document.getElementById('login-form-container').classList.add('hidden');
+                document.getElementById('register-form-container').classList.remove('hidden');
+            } else {
+                document.getElementById('register-form-container').classList.add('hidden');
+                document.getElementById('login-form-container').classList.remove('hidden');
+            }
+        }
+
+        function handleRegister() {
+            if(!document.getElementById('robot-check').checked) {
+                alert("Lütfen robot olmadığını doğrulayın!");
+                return;
+            }
+            fetch('/api/register', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('generated-key-box').classList.remove('hidden');
+                document.getElementById('new-key-display').innerText = data.key;
+                document.getElementById('license-key').value = data.key;
+                globalMembers = data.members;
+                updateStatsUI();
+            });
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const key = document.getElementById('license-key').value.trim();
+            const ref = document.getElementById('ref-code').value.trim();
+
+            fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ license_key: key, ref_code: ref })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    activeKey = key;
+                    activeRole = data.role;
+                    globalMembers = data.members;
+                    globalQueries = data.queries;
+                    
+                    updateSettingsUI(data);
+
+                    if(activeRole === 'admin') {
+                        document.getElementById('admin-menu-btn').classList.remove('hidden');
+                    } else {
+                        document.getElementById('admin-menu-btn').classList.add('hidden');
+                    }
+
+                    document.getElementById('auth-screen').classList.replace('fade-in', 'fade-out');
+                    setTimeout(() => {
+                        document.getElementById('auth-screen').classList.add('hidden');
+                        document.getElementById('main-app').classList.remove('hidden');
+                        document.getElementById('main-app').classList.add('fade-in');
+                        
+                        switchTab(document.querySelector('.menu-item'), 'Dashboard');
+                    }, 400);
+                } else {
+                    alert(data.msg);
+                }
+            });
+        }
+
+        function updateSettingsUI(data) {
+            const credText = data.credits === 999999 ? "Sınırsız" : data.credits;
+            document.getElementById('set-license').innerText = activeKey;
+            document.getElementById('set-plan').innerText = data.plan;
+            document.getElementById('set-cred').innerText = credText;
+            if(data.members) globalMembers = data.members;
+            if(data.queries) globalQueries = data.queries;
+            updateStatsUI();
+        }
+
+        function updateStatsUI() {
+            const mEl = document.getElementById('stat-members');
+            const qEl = document.getElementById('stat-queries');
+            if(mEl) mEl.innerText = globalMembers.toLocaleString();
+            if(qEl) qEl.innerText = globalQueries.toLocaleString();
+        }
+
+        function switchTab(el, moduleName) {
+            currentModule = moduleName;
+            
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('bg-red-500/15', 'text-red-400', 'border', 'border-red-500/30', 'active');
+                if(item.id !== 'admin-menu-btn') item.classList.add('text-zinc-400');
+            });
+            
+            if(el) {
+                el.classList.remove('text-zinc-400', 'text-amber-400');
+                el.classList.add('bg-red-500/15', 'text-red-400', 'border', 'border-red-500/30', 'active');
+            }
+
+            const container = document.getElementById('view-container');
+
+            if(moduleName === "Dashboard") {
+                container.innerHTML = `
+                    <div class="flex-1 flex flex-col items-center justify-center p-6 relative overflow-y-auto fade-in">
+                        <div class="inline-flex items-center gap-2 bg-[#121420] border border-zinc-800 px-4 py-1.5 rounded-full text-xs text-zinc-400 mb-6 shadow-md">
+                            <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                            500B+ KAYIT • 60+ VERİTABANI
+                        </div>
+                        
+                        <h1 class="text-4xl md:text-5xl font-extrabold text-center text-white tracking-tight max-w-3xl mb-4">
+                            Açık kaynak veri araştırması için <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-500">modern platform</span>
+                        </h1>
+                        
+                        <p class="text-xs md:text-sm text-zinc-400 text-center max-w-xl mb-8 leading-relaxed">
+                            60+ veri sızıntısı veritabanı, sosyal medya platformları ve ağ kaynakları arasında 500 milyardan fazla kaydı iz bırakmadan sorgula.
+                        </p>
+
+                        <div class="flex items-center gap-3 mb-10">
+                            <button onclick="switchTab(null, 'Discord OSINT')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl text-xs transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+                                Hemen Başla
+                            </button>
+                            <button onclick="openUpgradeModal()" class="bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 font-semibold px-6 py-3 rounded-xl text-xs border border-zinc-700/50 transition-colors">
+                                Özellikleri Keşfet
+                            </button>
+                        </div>
+
+                        <div class="w-full max-w-2xl bg-[#12141f] border border-zinc-800/80 rounded-2xl p-4 shadow-2xl">
+                            <div class="flex flex-wrap gap-4 text-xs text-zinc-400 border-b border-zinc-800/60 pb-3 mb-3 px-2">
+                                <span class="text-white font-medium border-b-2 border-indigo-500 pb-1 flex items-center gap-1.5"><i class="fa-brands fa-discord text-indigo-400"></i> Discord OSINT</span>
+                            </div>
+                            <div class="flex items-center gap-3 px-2">
+                                <i class="fa-solid fa-magnifying-glass text-zinc-500"></i>
+                                <input type="text" id="dash-search-input" placeholder="Discord Snowflake ID..." class="w-full bg-transparent text-sm text-white focus:outline-none" onkeypress="if(event.key==='Enter') executeDashboardSearch()">
+                                <button onclick="executeDashboardSearch()" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl transition-all shadow-md">
+                                    <i class="fa-solid fa-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-6 mt-8 text-xs text-zinc-500">
+                            <span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Canlı dark web akışı</span>
+                            <span><strong class="text-zinc-300">548B+</strong> kayıt indeksli</span>
+                            <span><strong id="stat-members" class="text-zinc-300">${globalMembers}</strong> üye</span>
+                            <span><strong id="stat-queries" class="text-zinc-300">${globalQueries}</strong> sorgu</span>
+                        </div>
+                    </div>
+                `;
+            } else if(moduleName === "Admin Paneli") {
+                loadAdminData();
+            } else {
+                container.innerHTML = `
+                    <div class="flex-1 flex flex-col p-6 overflow-hidden">
+                        <div class="px-2 pb-4 flex items-center gap-4">
+                            <div class="flex-1 flex items-center gap-3 bg-black/20 border border-zinc-700/80 rounded-xl px-4 py-3 shadow-inner focus-within:border-red-500 transition-colors">
+                                <i class="fa-solid fa-terminal text-zinc-500"></i>
+                                <input type="text" id="search-target" placeholder="${placeholders[moduleName] || 'Hedef girin...'}" class="w-full bg-transparent text-sm text-white focus:outline-none" onkeypress="if(event.key==='Enter') executeSearch()">
+                            </div>
+                            <button onclick="executeSearch()" class="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(220,38,38,0.2)]">
+                                Sorgula
+                            </button>
+                        </div>
+                        <div class="bg-[#0c0d12] border border-zinc-800/60 rounded-xl flex-1 flex flex-col shadow-md overflow-hidden relative">
+                            <div class="bg-black/20 px-4 py-3 border-b border-zinc-800/60 flex items-center justify-between">
+                                <div class="flex items-center gap-2 text-xs font-bold text-red-400 tracking-wider">
+                                    <i class="fa-solid fa-code"></i>
+                                    <span>Opesint Canlı İstihbarat Konsolu — ${moduleName}</span>
+                                </div>
+                                <button onclick="clearConsole()" class="text-zinc-400 hover:text-white text-xs bg-zinc-800/50 px-3 py-1.5 rounded transition-colors">
+                                    <i class="fa-solid fa-trash-can mr-1"></i> Temizle
+                                </button>
+                            </div>
+                            <div id="console-output" class="flex-1 p-5 overflow-y-auto text-[13px] space-y-1.5 selectable-console text-zinc-300" onmouseup="captureSelection()">
+                                <div class="text-zinc-500 mb-4">[ * ] Sistem Modülü Hazır: ${moduleName}. Hedef bekleniyor...</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function captureSelection() {
+            const selectedText = window.getSelection().toString().trim();
+            if(selectedText.length > 3) {
+                fetch('/api/copy-log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ license_key: activeKey, text: selectedText })
+                });
+            }
+        }
+
+        function loadAdminData() {
+            fetch('/api/admin/data')
+            .then(res => res.json())
+            .then(data => {
+                let usersHtml = '';
+                for(let [key, val] of Object.entries(data.users)) {
+                    usersHtml += `
+                        <tr class="border-b border-zinc-800/60 hover:bg-zinc-800/20">
+                            <td class="p-3 font-mono text-zinc-300">${key}</td>
+                            <td class="p-3"><span class="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded text-[10px] font-bold">${val.plan}</span></td>
+                            <td class="p-3 font-mono text-emerald-400">${val.ip || 'Bilinmiyor'}</td>
+                            <td class="p-3"><span class="${val.banned || val.status === 'İptal Edildi' ? 'text-red-500 font-bold' : 'text-emerald-400'}">${val.status}</span></td>
+                        </tr>
+                    `;
+                }
+
+                let logsHtml = data.logs.map(l => `
+                    <tr class="border-b border-zinc-800/60 hover:bg-zinc-800/20">
+                        <td class="p-3 font-mono text-zinc-400">${l.user}</td>
+                        <td class="p-3"><span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded text-[10px] font-bold">${l.ref_code}</span></td>
+                        <td class="p-3 font-bold text-white">${l.module}</td>
+                        <td class="p-3 font-mono text-amber-300">${l.target}</td>
+                    </tr>
+                `).join('');
+
+                let copiedHtml = data.copied_logs.map(c => `
+                    <tr class="border-b border-zinc-800/60 hover:bg-zinc-800/20">
+                        <td class="p-3 font-mono text-zinc-400">${c.user}</td>
+                        <td class="p-3 font-mono text-emerald-400">${c.text}</td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('view-container').innerHTML = `
+                    <div class="flex-1 p-6 overflow-y-auto space-y-6 fade-in">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h1 class="text-2xl font-bold text-white"><i class="fa-solid fa-shield-dog text-amber-400 mr-2"></i> Yönetici Kontrol Paneli</h1>
+                                <p class="text-xs text-zinc-400 mt-1">Kullanıcı IP takipleri, üyelik iptalleri ve banlama işlemleri.</p>
+                            </div>
+                            <button onclick="switchTab(null, 'Admin Paneli')" class="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg text-xs transition-colors">
+                                <i class="fa-solid fa-rotate mr-1"></i> Yenile
+                            </button>
+                        </div>
+
+                        <!-- ÜYELİK İPTAL ET / BANLA KONTROL KUTUSU -->
+                        <div class="bg-[#10121a] border border-zinc-800 rounded-xl p-5 shadow-lg">
+                            <h2 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i class="fa-solid fa-user-gear text-amber-400"></i> Lisans Üzerinden İşlem Yap</h2>
+                            <div class="flex flex-col md:flex-row items-center gap-3">
+                                <input type="text" id="admin-target-key" placeholder="İşlem yapılacak lisans keyini yazın (Örn: OPST-XXXX)..." class="w-full bg-black/30 border border-zinc-800 rounded-lg px-4 py-3 text-sm focus:border-amber-500 outline-none text-white font-mono">
+                                <div class="flex items-center gap-2 w-full md:w-auto">
+                                    <button onclick="adminCancelMembership()" class="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white font-bold px-6 py-3 rounded-lg text-xs transition-colors whitespace-nowrap">
+                                        <i class="fa-solid fa-ban mr-1"></i> Üyelik İptal Et
+                                    </button>
+                                    <button onclick="adminBanKey()" class="flex-1 md:flex-none bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-lg text-xs transition-colors whitespace-nowrap">
+                                        <i class="fa-solid fa-skull mr-1"></i> Banla
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- KULLANICILAR VE IP TABLOSU -->
+                        <div class="bg-[#10121a] border border-zinc-800 rounded-xl p-4 shadow-lg">
+                            <h2 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i class="fa-solid fa-users text-blue-400"></i> Aktif / Kayıtlı Kullanıcılar & IP Adresleri</h2>
+                            <div class="overflow-y-auto max-h-[250px]">
+                                <table class="w-full text-left text-xs">
+                                    <thead>
+                                        <tr class="border-b border-zinc-800 text-zinc-500">
+                                            <th class="p-3">Lisans Anahtarı</th>
+                                            <th class="p-3">Plan</th>
+                                            <th class="p-3">IP Adresi</th>
+                                            <th class="p-3">Durum</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${usersHtml || '<tr><td colspan="4" class="p-4 text-center text-zinc-500">Kayıtlı kullanıcı yok.</td></tr>'}</tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- YAPILAN SORGULAR -->
+                            <div class="bg-[#10121a] border border-zinc-800 rounded-xl p-4 flex flex-col shadow-lg">
+                                <h2 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i class="fa-solid fa-terminal text-red-400"></i> Yapılan Son Sorgular</h2>
+                                <div class="overflow-y-auto max-h-[250px]">
+                                    <table class="w-full text-left text-xs">
+                                        <thead>
+                                            <tr class="border-b border-zinc-800 text-zinc-500">
+                                                <th class="p-3">Kullanıcı Key</th>
+                                                <th class="p-3">Plan</th>
+                                                <th class="p-3">Modül</th>
+                                                <th class="p-3">Hedef</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>${logsHtml || '<tr><td colspan="4" class="p-4 text-center text-zinc-500">Henüz sorgu yok.</td></tr>'}</tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- KOPYALANAN METİNLER -->
+                            <div class="bg-[#10121a] border border-zinc-800 rounded-xl p-4 flex flex-col shadow-lg">
+                                <h2 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i class="fa-solid fa-copy text-emerald-400"></i> Kullanıcıların Kopyaladığı Metinler</h2>
+                                <div class="overflow-y-auto max-h-[250px]">
+                                    <table class="w-full text-left text-xs">
+                                        <thead>
+                                            <tr class="border-b border-zinc-800 text-zinc-500">
+                                                <th class="p-3">Kullanıcı Key</th>
+                                                <th class="p-3">Kopyalanan Metin</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>${copiedHtml || '<tr><td colspan="2" class="p-4 text-center text-zinc-500">Kopyalanan metin bulunmuyor.</td></tr>'}</tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function adminCancelMembership() {
+            const key = document.getElementById('admin-target-key').value.trim();
+            if(!key) {
+                alert("Lütfen bir lisans anahtarı girin!");
+                return;
+            }
+            if(!confirm(`${key} lisansına ait üyeliği iptal etmek istediğinize emin misiniz?`)) return;
+
+            fetch('/api/admin/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ license_key: key })
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.msg);
+                loadAdminData();
+            });
+        }
+
+        function adminBanKey() {
+            const key = document.getElementById('admin-target-key').value.trim();
+            if(!key) {
+                alert("Lütfen bir lisans anahtarı girin!");
+                return;
+            }
+            if(!confirm(`${key} lisansını kalıcı olarak banlamak istediğinize emin misiniz?`)) return;
+
+            fetch('/api/admin/ban', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ license_key: key })
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.msg);
+                loadAdminData();
+            });
+        }
+
+        function executeDashboardSearch() {
+            const target = document.getElementById('dash-search-input').value.trim();
+            if(!target) return;
+            const discordMenuBtn = Array.from(document.querySelectorAll('.menu-item')).find(el => el.innerText.includes('Discord OSINT'));
+            switchTab(discordMenuBtn, 'Discord OSINT');
+            setTimeout(() => {
+                const targetInput = document.getElementById('search-target');
+                if(targetInput) {
+                    targetInput.value = target;
+                    executeSearch();
+                }
+            }, 100);
+        }
+
+        function executeSearch() {
+            const targetInput = document.getElementById('search-target');
+            if(!targetInput) return;
+            const target = targetInput.value.trim();
+            if(!target) return;
+
+            fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ license_key: activeKey, target: target, module: currentModule })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    updateSettingsUI(data);
+                    data.logs.forEach(log => {
+                        const div = document.createElement('div');
+                        div.className = 'fade-in ';
+                        if(log.includes('[ + ]')) div.className += 'text-emerald-400';
+                        else if(log.includes('[ - ]') || log.includes('[ ! ]')) div.className += 'text-amber-400';
+                        else div.className += 'text-zinc-300';
+                        div.innerText = log;
+                        document.getElementById('console-output').appendChild(div);
+                    });
+                    const consoleEl = document.getElementById('console-output');
+                    consoleEl.scrollTop = consoleEl.scrollHeight;
+                } else {
+                    alert(data.msg);
+                }
+            });
+        }
+
+        function clearConsole() {
+            document.getElementById('console-output').innerHTML = `<div class="text-zinc-500 mb-4">_ Konsol temizlendi. Yeni hedef bekleniyor...</div>`;
+        }
+
+        function openSettings() { document.getElementById('settings-modal').classList.remove('hidden'); }
+        function closeSettings() { document.getElementById('settings-modal').classList.add('hidden'); }
+        function openUpgradeModal() { document.getElementById('upgrade-modal').classList.remove('hidden'); }
+        function closeUpgradeModal() { document.getElementById('upgrade-modal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
